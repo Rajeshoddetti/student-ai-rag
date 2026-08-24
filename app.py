@@ -13,7 +13,8 @@ COOLDOWN_SECONDS = 8
 RETRIEVE_K = 6
 
 FALLBACK_MODELS = [
-    "llama-3.3-70b-versatile",
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-120b",
 ]
 
 MARKS_RULES = {
