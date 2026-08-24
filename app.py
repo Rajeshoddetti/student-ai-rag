@@ -13,7 +13,6 @@ COOLDOWN_SECONDS = 8
 RETRIEVE_K = 6
 
 FALLBACK_MODELS = [
-    "llama-3.1-8b-instant",
     "llama-3.3-70b-versatile",
 ]
 
