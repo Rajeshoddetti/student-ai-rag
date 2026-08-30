@@ -12,6 +12,13 @@ VECTORSTORE_DIR = "vectorstore"
 COOLDOWN_SECONDS = 8
 RETRIEVE_K = 6
 
+# FAISS returns L2 distance (lower = more similar). If the best match's
+# distance is above this, we treat the PDFs as "not covering this question"
+# and fall back to general knowledge instead of forcing a weak match.
+# Tune this if you notice good matches being rejected, or bad matches
+# being accepted - all-MiniLM-L6-v2 typically sits in the 0.3-1.3 range.
+RELEVANCE_DISTANCE_THRESHOLD = 1.1
+
 FALLBACK_MODELS = [
     "openai/gpt-oss-20b",
     "openai/gpt-oss-120b",
@@ -25,7 +32,7 @@ MARKS_RULES = {
 
 st.set_page_config(page_title="Student AI", page_icon="🎓", layout="wide")
 st.title("🎓 Student AI")
-st.caption("JNTUH syllabus-based answers from your own PDFs only — no outside knowledge, no guessing.")
+st.caption("JNTUH exam-ready answers - grounded in your syllabus PDFs when available, clearly flagged when not.")
 
 
 @st.cache_resource
@@ -77,6 +84,39 @@ question = st.text_input("Ask any question (Define / Explain / Advantages / Appl
 if "last_request_time" not in st.session_state:
     st.session_state.last_request_time = 0
 
+
+def build_grounded_prompt(context, answer_type):
+    return f"""You are Student-AI, an exam-prep assistant for JNTUH B.Tech students.
+
+ANSWER FORMAT RULE:
+{MARKS_RULES[answer_type]}
+
+STRICT RULES:
+- Use ONLY the information in CONTEXT below. Never add outside facts or assume anything.
+- Write in clear, point-wise, exam-oriented English.
+- Do not repeat sentences or pad the answer.
+
+CONTEXT:
+{context}"""
+
+
+def build_fallback_prompt(answer_type, subject_hint):
+    subject_line = f" The question is likely from the subject area: {subject_hint}." if subject_hint != "Any" else ""
+    return f"""You are Student-AI, an exam-prep assistant for JNTUH B.Tech students.
+No matching notes were found in the uploaded syllabus PDFs for this question, so answer using your
+own general subject knowledge instead.{subject_line}
+
+ANSWER FORMAT RULE:
+{MARKS_RULES[answer_type]}
+
+RULES:
+- Write the answer in standard JNTUH exam style - clear, point-wise, exam-oriented English, as if it
+  were going into an official syllabus note.
+- Do not claim this came from any specific textbook or the student's own notes.
+- If the question is too vague or not a real academic topic, say so plainly instead of making
+  something up."""
+
+
 if question:
     if time.time() - st.session_state.last_request_time < COOLDOWN_SECONDS:
         st.warning("⏳ Please wait a few seconds before asking another question.")
@@ -85,32 +125,23 @@ if question:
 
     with st.spinner("Searching your syllabus PDFs..."):
         search_filter = None if subject_filter == "Any" else {"subject": subject_filter}
-        docs = db.similarity_search(question, k=RETRIEVE_K, filter=search_filter)
+        scored_docs = db.similarity_search_with_score(question, k=RETRIEVE_K, filter=search_filter)
 
-        if not docs:
-            st.warning("No relevant content found in your PDFs for this question/subject.")
-            st.stop()
+    use_grounded = bool(scored_docs) and scored_docs[0][1] <= RELEVANCE_DISTANCE_THRESHOLD
 
-        detected_subject = Counter(d.metadata.get("subject", "unknown") for d in docs).most_common(1)[0][0]
-        context = "\n\n".join(d.page_content for d in docs)
-
-        system_prompt = f"""You are Student-AI, an exam-prep assistant for JNTUH B.Tech students.
-
-ANSWER FORMAT RULE:
-{MARKS_RULES[answer_type]}
-
-STRICT RULES:
-- Use ONLY the information in CONTEXT below. Never add outside facts or assume anything.
-- If the context doesn't actually cover the question, say: "Not explicitly covered in the uploaded syllabus material."
-- Write in clear, point-wise, exam-oriented English.
-- Do not repeat sentences or pad the answer."""
-
-        user_prompt = f"CONTEXT:\n{context}\n\nQUESTION:\n{question}"
+    with st.spinner("Writing your answer..."):
+        if use_grounded:
+            docs = [d for d, _score in scored_docs]
+            detected_subject = Counter(d.metadata.get("subject", "unknown") for d in docs).most_common(1)[0][0]
+            context = "\n\n".join(d.page_content for d in docs)
+            system_prompt = build_grounded_prompt(context, answer_type)
+        else:
+            system_prompt = build_fallback_prompt(answer_type, subject_filter)
 
         try:
             response = llm.invoke([
                 SystemMessage(content=system_prompt),
-                HumanMessage(content=user_prompt),
+                HumanMessage(content=f"QUESTION:\n{question}"),
             ])
         except RateLimitError:
             st.warning("⚠️ Free usage limit reached. Please wait a minute and try again.")
@@ -120,7 +151,9 @@ STRICT RULES:
             st.stop()
 
     st.subheader("📝 Exam-Ready Answer")
-    st.success(f"Detected subject: {detected_subject}")
+    if use_grounded:
+        st.success(f"📘 From your syllabus PDFs — detected subject: {detected_subject}")
+    else:
+        st.warning("🌐 General knowledge answer — not found in your uploaded PDFs. Cross-check before relying on this for exams.")
     st.info(f"Answer type: {answer_type}")
     st.write(response.content)
-    st.caption("📘 Generated strictly from your syllabus PDFs (retrieval-grounded, model fallback enabled).")
