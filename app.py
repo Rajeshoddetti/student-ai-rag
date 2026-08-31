@@ -30,6 +30,13 @@ MARKS_RULES = {
     "10 Marks": "Write a detailed exam answer: brief intro, then organized sections/headings covering definition, working, types, examples, and note where a diagram belongs as '[Diagram: description]'. 250-350 words.",
 }
 
+NO_LATEX_RULE = (
+    "- NEVER use LaTeX syntax (no backslash commands like \\overline, \\cdot, \\frac, no curly-brace "
+    "grouping). Write all math/logic expressions in plain readable text instead: use A' for "
+    "complement/NOT A, + for OR, \u00b7 or * for AND, normal parentheses for grouping. "
+    "Example: write \"A' \u00b7 B'\" instead of \"\\overline{A} \\cdot \\overline{B}\"."
+)
+
 st.set_page_config(page_title="Student AI", page_icon="🎓", layout="wide")
 st.title("🎓 Student AI")
 st.caption("JNTUH exam-ready answers - grounded in your syllabus PDFs when available, clearly flagged when not.")
@@ -95,6 +102,7 @@ STRICT RULES:
 - Use ONLY the information in CONTEXT below. Never add outside facts or assume anything.
 - Write in clear, point-wise, exam-oriented English.
 - Do not repeat sentences or pad the answer.
+{NO_LATEX_RULE}
 
 CONTEXT:
 {context}"""
@@ -114,7 +122,8 @@ RULES:
   were going into an official syllabus note.
 - Do not claim this came from any specific textbook or the student's own notes.
 - If the question is too vague or not a real academic topic, say so plainly instead of making
-  something up."""
+  something up.
+{NO_LATEX_RULE}"""
 
 
 if question:
