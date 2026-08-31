@@ -27,7 +27,7 @@ FALLBACK_MODELS = [
 MARKS_RULES = {
     "2 Marks": "Give a crisp definition followed by 2-3 bullet points. No extra explanation, no examples. Under 40 words.",
     "5 Marks": "Explain with a short intro line and 4-6 bullet points covering the core sub-concepts. Roughly 100-130 words.",
-    "10 Marks": "Write a detailed exam answer: brief intro, then organized sections/headings covering definition, working, types, examples, and note where a diagram belongs as '[Diagram: description]'. 250-350 words.",
+    "10 Marks": "Write a COMPLETE, detailed 10-mark exam answer - this needs real depth, not a summary. Structure: (1) a definition/intro paragraph, (2) working/mechanism explained step by step, (3) types or classification if applicable, (4) at least 2-3 real examples or use cases, (5) advantages/disadvantages or applications if relevant to the topic, (6) note where a diagram belongs as '[Diagram: description]'. Use clear headings for each section. Do not stop early or summarize - a 10-mark JNTUH answer is expected to be thorough, roughly 400-500 words. Finish every section completely before ending.",
 }
 
 NO_LATEX_RULE = (
@@ -66,7 +66,7 @@ def get_llm():
                 api_key=st.secrets["GROQ_API_KEY"],
                 model_name=model_name,
                 temperature=0.15,
-                max_tokens=700,
+                max_tokens=1400,
             )
         except Exception as e:
             last_error = e
@@ -166,3 +166,4 @@ if question:
         st.warning("🌐 General knowledge answer — not found in your uploaded PDFs. Cross-check before relying on this for exams.")
     st.info(f"Answer type: {answer_type}")
     st.write(response.content)
+
